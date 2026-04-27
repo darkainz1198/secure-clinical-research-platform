@@ -63,6 +63,7 @@ HASHES_DIR     = os.path.join(BASE_DIR, "data", "hashes")
 # key does NOT expose the original identifiable patient data.
 AES_ORIGINAL_KEY_FILE   = os.path.join(KEYS_DIR, "aes_original.key")
 AES_CONTROLLED_KEY_FILE = os.path.join(KEYS_DIR, "aes_controlled.key")
+AES_FINDINGS_KEY_FILE   = os.path.join(KEYS_DIR, "aes_findings.key")
 
 # NIST SP 800-38D recommends a 96-bit (12-byte) IV for AES-GCM
 AES_IV_SIZE = 12
@@ -108,6 +109,15 @@ def get_controlled_key() -> bytes:
     to decrypt it. Separate from the original key by design.
     """
     return load_or_create_aes_key(AES_CONTROLLED_KEY_FILE)
+
+
+def get_findings_key() -> bytes:
+    """
+    Return the AES-256 key for the findings data zone.
+    Used by the Researcher to encrypt and decrypt their findings.
+    Separate from other keys for additional security layering.
+    """
+    return load_or_create_aes_key(AES_FINDINGS_KEY_FILE)
 
 
 # ── AES-256-GCM Encryption / Decryption ──────────────────────────────────────

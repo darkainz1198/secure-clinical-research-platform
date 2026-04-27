@@ -6,13 +6,13 @@ Module: WM9PC-15 Applied Cryptography — Warwick Manufacturing Group
 A local, file-based Python CLI prototype demonstrating a secure
 clinical research data-sharing system with three user roles:
   Clinician  — uploads and retrieves encrypted patient datasets
-  Researcher — accesses pseudonymised data and signs research findings
+  Researcher — accesses pseudonymised data and creates/signs encrypted research findings
   Auditor    — verifies signatures, checks integrity, reviews audit logs
 
 Startup sequence:
   1. Seed test accounts in data/users.json (bcrypt-hashed, first run only)
   2. Generate RSA-2048 key pair for the researcher role (first run only)
-  3. Initialise AES-256 keys for both data zones (first run only)
+  3. Initialise AES-256 keys for all data zones (original, controlled, findings) (first run only)
   4. Log a STARTUP event to the audit log
   5. Present the secure login prompt
   6. Dispatch the authenticated user to their role-specific menu
@@ -41,7 +41,7 @@ import sys
 from auth import seed_users, login, is_logged_in, get_current_role, get_current_user
 from audit import log_event
 from menus import clinician_menu, researcher_menu, auditor_menu
-from crypto_utils import generate_rsa_keypair, get_original_key, get_controlled_key
+from crypto_utils import generate_rsa_keypair, get_original_key, get_controlled_key, get_findings_key
 
 
 def startup_setup() -> None:
@@ -69,6 +69,7 @@ def startup_setup() -> None:
     generate_rsa_keypair("researcher")  # Create RSA key pair if absent
     get_original_key()        # Create AES original key if absent
     get_controlled_key()      # Create AES controlled key if absent
+    get_findings_key()        # Create AES findings key if absent
 
     print("  [INIT] All components ready.\n")
 

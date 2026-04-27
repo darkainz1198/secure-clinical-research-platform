@@ -30,7 +30,7 @@ from auth import get_current_user, get_current_role, has_permission, logout
 from storage import (
     store_original_dataset, retrieve_original_dataset,
     retrieve_controlled_dataset, store_findings,
-    list_original_datasets, list_controlled_datasets,
+    retrieve_findings, list_original_datasets, list_controlled_datasets,
     list_findings, list_all_stored_files,
     FINDINGS_DIR,
 )
@@ -96,6 +96,141 @@ def _pick_researcher() -> str | None:
     except (ValueError, IndexError):
         print("  Invalid selection.")
         return None
+
+
+def _display_csv_as_table(csv_content: str) -> None:
+    """
+    Parse CSV content and display it as a formatted table.
+    Assumes the first line is headers, subsequent lines are data rows.
+    """
+    import csv
+    import io
+
+    reader = csv.reader(io.StringIO(csv_content))
+    rows = list(reader)
+    
+    if not rows:
+        print("  (No data)")
+        return
+    
+    headers = rows[0]
+    data_rows = rows[1:]
+    
+    # Calculate column widths
+    col_widths = []
+    for i, header in enumerate(headers):
+        max_width = len(header)
+        for row in data_rows:
+            if i < len(row):
+                max_width = max(max_width, len(row[i]))
+        col_widths.append(max_width)
+    
+    # Print table
+    def print_row(row_data, is_header=False):
+        line = "  │"
+        for i, cell in enumerate(row_data):
+            if i < len(col_widths):
+                line += f" {cell:<{col_widths[i]}} │"
+            else:
+                line += f" {cell} │"
+        print(line)
+    
+    # Top border
+    top_border = "  ┌" + "┬".join("─" * (width + 2) for width in col_widths) + "┐"
+    print(top_border)
+    
+    # Header
+    print_row(headers, is_header=True)
+    
+    # Separator
+    sep = "  ├" + "┼".join("─" * (width + 2) for width in col_widths) + "┤"
+    print(sep)
+    
+    # Data rows
+    for row in data_rows:
+        print_row(row)
+    
+    # Bottom border
+    bottom_border = "  └" + "┴".join("─" * (width + 2) for width in col_widths) + "┘"
+    print(bottom_border)
+
+
+def _display_log_as_table(log_content: str) -> None:
+    """
+    Parse audit log content and display it as a formatted table.
+    Assumes log entries are in the format:
+    [YYYY-MM-DD HH:MM:SS] | user=username | role=role | action=ACTION | detail=free text
+    """
+    if not log_content or log_content.startswith("(Audit log"):
+        print(f"  {log_content}")
+        return
+    
+    lines = log_content.strip().split('\n')
+    if not lines:
+        print("  (No log entries)")
+        return
+    
+    # Parse log entries
+    table_data = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            # Parse the log format: [timestamp] | user=X | role=Y | action=Z | detail=W
+            parts = line.split(' | ')
+            if len(parts) >= 4:
+                timestamp = parts[0].strip('[]')
+                user = parts[1].replace('user=', '').strip()
+                role = parts[2].replace('role=', '').strip()
+                action = parts[3].replace('action=', '').strip()
+                detail = parts[4].replace('detail=', '').strip() if len(parts) > 4 else ''
+                
+                table_data.append([timestamp, user, role, action, detail])
+        except:
+            # If parsing fails, add as raw line
+            table_data.append([line, '', '', '', ''])
+    
+    if not table_data:
+        print("  (No valid log entries)")
+        return
+    
+    # Calculate column widths
+    headers = ['Timestamp', 'User', 'Role', 'Action', 'Details']
+    col_widths = [len(h) for h in headers]
+    
+    for row in table_data:
+        for i, cell in enumerate(row):
+            if i < len(col_widths):
+                col_widths[i] = max(col_widths[i], len(str(cell)))
+    
+    # Print table
+    def print_row(row_data):
+        line = "  │"
+        for i, cell in enumerate(row_data):
+            if i < len(col_widths):
+                line += f" {str(cell):<{col_widths[i]}} │"
+            else:
+                line += f" {str(cell)} │"
+        print(line)
+    
+    # Top border
+    top_border = "  ┌" + "┬".join("─" * (width + 2) for width in col_widths) + "┐"
+    print(top_border)
+    
+    # Header
+    print_row(headers)
+    
+    # Separator
+    sep = "  ├" + "┼".join("─" * (width + 2) for width in col_widths) + "┤"
+    print(sep)
+    
+    # Data rows
+    for row in table_data:
+        print_row(row)
+    
+    # Bottom border
+    bottom_border = "  └" + "┴".join("─" * (width + 2) for width in col_widths) + "┘"
+    print(bottom_border)
 
 
 # ── Clinician menu ────────────────────────────────────────────────────────────
@@ -236,9 +371,18 @@ def _clinician_manual_entry() -> None:
         print("  [ERROR] No data entered.")
         return
 
+    # Display entered data in table format
+    print("\n  Patient Data Entered:")
+    _display_csv_as_table(csv_content)
+
+    # Ask for confirmation
+    confirm = input("\n  Confirm data entry? (y/n): ").strip().lower()
+    if confirm != 'y':
+        print("  Data entry cancelled.")
+        return
+
     # ── Assign a researcher ───────────────────────────────────
-    print("\n  Data entered.")
-    print("  Assign this dataset to a specific researcher.")
+    print("\n  Assign this dataset to a specific researcher.")
     print("  Only the assigned researcher will be able to access the controlled copy.")
 
     assigned_researcher = _pick_researcher()
@@ -280,10 +424,9 @@ def _clinician_retrieve() -> None:
 
     try:
         plaintext = retrieve_original_dataset(chosen)
+        csv_content = plaintext.decode("utf-8", errors="replace")
         print(f"\n  Decrypted content of '{chosen}':")
-        print("  " + "-" * 54)
-        print(plaintext.decode("utf-8", errors="replace"))
-        print("  " + "-" * 54)
+        _display_csv_as_table(csv_content)
         log_event(get_current_user(), get_current_role(), "RETRIEVE", f"file={chosen}")
     except Exception as exc:
         print(f"  [ERROR] Decryption failed: {exc}")
@@ -417,9 +560,7 @@ def _researcher_decrypt() -> None:
         content = retrieve_controlled_dataset(chosen, current_user)
         print(f"\n  Decrypted controlled dataset '{chosen}':")
         print("  [All direct patient identifiers have been pseudonymised — GDPR compliant]")
-        print("  " + "-" * 54)
-        print(content.decode("utf-8", errors="replace"))
-        print("  " + "-" * 54)
+        _display_csv_as_table(content.decode("utf-8", errors="replace"))
         log_event(
             get_current_user(), get_current_role(), "DECRYPT_CONTROLLED",
             f"file={chosen}",
@@ -609,8 +750,34 @@ def _researcher_sign_findings() -> None:
             print("  Signing cancelled.")
             return
 
+    findings_path = os.path.join(FINDINGS_DIR, chosen)
+
+    # For findings, we need to sign the plaintext content, not the encrypted file
+    try:
+        plaintext_content = retrieve_findings(chosen)
+    except Exception as e:
+        print(f"  [ERROR] Failed to decrypt findings for signing: {e}")
+        return
+
     print(f"\n  Signing '{display_name}' with RSA-PSS (SHA-256, 2048-bit key)...")
-    sig_path = sign_file(findings_path, "researcher")
+    
+    # Create a temporary file with plaintext content for signing
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_file:
+        temp_file.write(plaintext_content)
+        temp_file_path = temp_file.name
+    
+    try:
+        temp_sig_path = sign_file(temp_file_path, "researcher")
+        # Move the signature to the findings directory
+        final_sig_path = findings_path + ".sig"
+        import shutil
+        shutil.move(temp_sig_path, final_sig_path)
+        sig_path = final_sig_path
+    finally:
+        # Clean up temporary file
+        os.unlink(temp_file_path)
+    
     print(f"  [OK] Signature saved to: {sig_path}")
     print(f"       Signature size: {os.path.getsize(sig_path)} bytes")
     print(f"       The Auditor can verify this signature using option [1].")
@@ -680,11 +847,10 @@ def _researcher_read_findings() -> None:
 
     findings_path = os.path.join(FINDINGS_DIR, chosen)
     try:
-        with open(findings_path, 'r', encoding='utf-8') as f:
-            content = f.read()
+        content = retrieve_findings(chosen)
         print(f"\n  Content of '{display_name}':")
         print("  " + "-" * 50)
-        print(content)
+        print(content.decode("utf-8", errors="replace"))
     except Exception as e:
         print(f"  [ERROR] Failed to read file: {e}")
 
@@ -761,7 +927,27 @@ def _auditor_verify_sig() -> None:
         return
 
     print("  Verifying RSA-PSS signature using researcher public key...")
-    valid = verify_signature(findings_path, sig_path, "researcher")
+    
+    # For findings files, we need to verify against the plaintext content
+    if findings_path.startswith(FINDINGS_DIR):
+        try:
+            plaintext_content = retrieve_findings(chosen)
+            # Create a temporary file with plaintext content for verification
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_file:
+                temp_file.write(plaintext_content)
+                temp_file_path = temp_file.name
+            
+            try:
+                valid = verify_signature(temp_file_path, sig_path, "researcher")
+            finally:
+                # Clean up temporary file
+                os.unlink(temp_file_path)
+        except Exception as e:
+            print(f"  [ERROR] Failed to decrypt findings for verification: {e}")
+            return
+    else:
+        valid = verify_signature(findings_path, sig_path, "researcher")
 
     if valid:
         print("  [VALID]   Signature verified — file is authentic and unmodified.")
@@ -819,14 +1005,14 @@ def _auditor_check_integrity() -> None:
 
 
 def _auditor_view_log() -> None:
-    """Display the full audit log."""
+    """Display the full audit log in a formatted table."""
     if not has_permission("view_audit_log"):
         print("  [RBAC] Access denied.")
         return
     print("\n  " + "=" * 54)
     print("  AUDIT LOG")
     print("  " + "=" * 54)
-    print(read_log())
+    _display_log_as_table(read_log())
     print("  " + "=" * 54)
     log_event(get_current_user(), get_current_role(), "VIEW_LOG", "")
 

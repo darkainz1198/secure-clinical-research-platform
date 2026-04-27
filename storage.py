@@ -11,7 +11,7 @@ Handles all file-based storage operations:
 Data zone layout (enforced by directory separation + separate AES keys):
   data/original/    ← AES-encrypted full patient datasets (Clinician key)
   data/controlled/  ← AES-encrypted pseudonymised datasets (Controlled key)
-  data/findings/    ← Plaintext researcher findings + RSA .sig files
+  data/findings/    ← AES-encrypted researcher findings + RSA .sig files
   data/hashes/      ← SHA-256 companion .hash files for integrity checking
 
 Pseudonymisation design (GDPR compliance):
@@ -42,6 +42,7 @@ from crypto_utils import (
     decrypt_data,
     get_original_key,
     get_controlled_key,
+    get_findings_key,
     hash_file,
     save_hash,
     ORIGINAL_DIR,
@@ -296,22 +297,42 @@ def retrieve_controlled_dataset(enc_filename: str, researcher_username: str) -> 
 
 def store_findings(content: bytes, filename: str) -> str:
     """
-    Write a researcher's findings document to data/findings/ and save its hash.
+    Encrypt and store a researcher's findings document to data/findings/ and save its hash.
 
-    Findings are stored as plaintext (they are the researcher's analytical
-    output, not patient-identifiable data, so confidentiality encryption is
-    not required). However, a SHA-256 companion hash is saved so that the
-    auditor can later verify the findings have not been altered.
+    Findings are encrypted with AES-256-GCM using the findings key to ensure
+    confidentiality. A SHA-256 companion hash is saved so that the auditor can
+    later verify the findings have not been altered.
 
     Returns the full path to the stored findings file.
     """
     _ensure_dirs()
     findings_path = os.path.join(FINDINGS_DIR, filename)
+    
+    # Encrypt the findings content
+    findings_key = get_findings_key()
+    encrypted_content = encrypt_data(content, findings_key)
+    
     with open(findings_path, "wb") as f:
-        f.write(content)
+        f.write(encrypted_content)
     # Save hash immediately after write, before any other operation
     save_hash(findings_path, hash_file(findings_path))
     return findings_path
+
+
+def retrieve_findings(filename: str) -> bytes:
+    """
+    Decrypt and return the plaintext of a researcher's findings document.
+
+    Only callable during a Researcher session — the findings AES key is only
+    accessible to researchers. The findings are decrypted using the findings
+    key that was used for encryption.
+    """
+    path = os.path.join(FINDINGS_DIR, filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Findings file not found: {filename}")
+    with open(path, "rb") as f:
+        blob = f.read()
+    return decrypt_data(blob, get_findings_key())
 
 
 # ── File listing utilities ────────────────────────────────────────────────────

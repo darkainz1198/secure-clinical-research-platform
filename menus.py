@@ -321,6 +321,20 @@ def _clinician_upload() -> None:
         print("  Upload cancelled — no researcher assigned.")
         return
 
+    # ── Confirm informed consent (GDPR requirement) ───────────────────────
+    print("\n  GDPR COMPLIANCE CHECK:")
+    print("  Before uploading patient data, you must confirm that:")
+    print("  - All patients have provided explicit informed consent")
+    print("  - Consent covers the specific research purposes")
+    print("  - Consent is documented and can be produced if requested")
+    
+    consent = input("\n  Do you confirm informed consent has been obtained? (yes/no): ").strip().lower()
+    if consent != "yes":
+        print("  Upload cancelled — informed consent not confirmed.")
+        return
+    
+    log_event(get_current_user(), get_current_role(), "CONSENT_CONFIRMED", f"file={filename}")
+
     # ── Encrypt, pseudonymise, store, record assignment ───────────────────
     print(f"\n  Encrypting '{filename}' with AES-256-GCM...")
     original_path, controlled_path = store_original_dataset(
@@ -360,6 +374,31 @@ def _clinician_manual_entry() -> None:
     test_result = input("  Test Result: ").strip()
     medication = input("  Medication: ").strip()
     visit_date = input("  Visit Date (YYYY-MM-DD): ").strip()
+
+    # Field validation
+    import re
+    errors = []
+    
+    # Validate dob and visit_date format (YYYY-MM-DD)
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    if not date_pattern.match(dob):
+        errors.append("Date of Birth must be in YYYY-MM-DD format")
+    if not date_pattern.match(visit_date):
+        errors.append("Visit Date must be in YYYY-MM-DD format")
+    
+    # Validate nhs_number (non-empty, digits and hyphens only)
+    if not nhs_number or not re.match(r'^[\d-]+$', nhs_number):
+        errors.append("NHS Number must be non-empty and contain only digits and hyphens")
+    
+    # Validate postcode (non-empty)
+    if not postcode:
+        errors.append("Postcode must be non-empty")
+    
+    if errors:
+        print("\n  [VALIDATION ERRORS]:")
+        for error in errors:
+            print(f"    - {error}")
+        return
 
     # Create CSV content
     header = "patient_id,name,nhs_number,dob,postcode,diagnosis,test_result,medication,visit_date"
@@ -794,8 +833,11 @@ def _researcher_list_findings() -> None:
     if not has_permission("list_findings"):
         print("  [RBAC] Access denied.")
         return
-    findings = list_findings()
-    print("\n  All stored findings files (data/findings/):")
+    all_findings = list_findings()
+    current_user = get_current_user()
+    # Filter findings to show only files belonging to the current user
+    findings = [f for f in all_findings if f.startswith(f"{current_user}_")]
+    print(f"\n  Your findings files (data/findings/) — {current_user}:")
     if not findings:
         print("    (none — use option [3] to create findings)")
     for name in findings:
@@ -931,6 +973,9 @@ def _auditor_verify_sig() -> None:
     # For findings files, we need to verify against the plaintext content
     if findings_path.startswith(FINDINGS_DIR):
         try:
+            # The auditor session requires the findings decryption key to recover plaintext before signature verification.
+            # Note that this is intentional — verifying a signature requires the content that was signed — and that
+            # in a production system this would be handled via a separate read-only auditor key or a hash-based verification path.
             plaintext_content = retrieve_findings(chosen)
             # Create a temporary file with plaintext content for verification
             import tempfile

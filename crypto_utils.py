@@ -90,6 +90,7 @@ def load_or_create_aes_key(key_file: str) -> bytes:
     key = os.urandom(32)   # 256 bits from OS CSPRNG
     with open(key_file, "wb") as f:
         f.write(key)
+    os.chmod(key_file, 0o600)
     return key
 
 
@@ -284,6 +285,7 @@ def generate_rsa_keypair(role: str) -> None:
             format=serialization.PrivateFormat.TraditionalOpenSSL,
             encryption_algorithm=serialization.NoEncryption(),
         ))
+    os.chmod(priv_path, 0o600)
 
     # Write public key in PEM / SubjectPublicKeyInfo format
     pub_path = _rsa_public_key_path(role)

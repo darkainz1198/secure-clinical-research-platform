@@ -42,6 +42,7 @@ from auth import seed_users, login, is_logged_in, get_current_role, get_current_
 from audit import log_event
 from menus import clinician_menu, researcher_menu, auditor_menu
 from crypto_utils import generate_rsa_keypair, get_original_key, get_controlled_key, get_findings_key
+import getpass
 
 
 def startup_setup() -> None:
@@ -88,6 +89,14 @@ def login_prompt() -> bool:
       typed. Logging the attempted username would gradually expose valid
       usernames to anyone who reads the audit log (e.g. from mistyped logins).
       Only successful logins record the actual username.
+    
+    Session timeout note:
+      The current prototype does not implement session timeout or inactivity expiry.
+      A production deployment would enforce automatic logout after a configurable idle period.
+    
+    Login lockout persistence note:
+      The 3-attempt lockout is enforced in-memory for this session only and does not persist across restarts.
+      A production system would record a locked_until timestamp in users.json.
     """
     print("=" * 60)
     print("  SECURE LOGIN")
@@ -95,7 +104,7 @@ def login_prompt() -> bool:
 
     for attempt in range(1, 4):
         username = input("\n  Username: ").strip()
-        password = input("  Password: ").strip()
+        password = getpass.getpass("  Password: ").strip()
 
         if login(username, password):
             role = get_current_role()

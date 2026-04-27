@@ -1,6 +1,0 @@
-patient_id,name,nhs_number,dob,postcode,diagnosis,test_result,medication,visit_date
-P001,John Smith,123-456-7890,1975-04-12,CV1 2AA,Type 2 Diabetes,HbA1c: 58 mmol/mol,Metformin 500mg,2025-01-15
-P002,Sarah Jones,234-567-8901,1983-09-30,CV2 3BB,Hypertension,BP: 145/92 mmHg,Amlodipine 5mg,2025-01-18
-P003,Michael Brown,345-678-9012,1960-11-07,CV3 4CC,Chronic Kidney Disease Stage 3,eGFR: 42 ml/min,Ramipril 5mg,2025-01-22
-P004,Emily Davis,456-789-0123,1991-03-25,CV4 5DD,Asthma,Peak flow: 380 L/min,Salbutamol inhaler,2025-02-01
-P005,Robert Wilson,567-890-1234,1955-07-14,CV5 6EE,Atrial Fibrillation,Heart rate: 88 bpm,Warfarin 3mg,2025-02-05

@@ -68,7 +68,7 @@ IDENTIFIER_FIELDS = {
 
 
 def _ensure_dirs() -> None:
-    """Create all required data directories if they do not already exist."""
+    # Create all data directories if missing
     for directory in [ORIGINAL_DIR, CONTROLLED_DIR, FINDINGS_DIR, HASHES_DIR]:
         os.makedirs(directory, exist_ok=True)
 
@@ -76,20 +76,12 @@ def _ensure_dirs() -> None:
 # ── Pseudonymisation ──────────────────────────────────────────────────────────
 
 def _is_identifier_field(header: str) -> bool:
-    """
-    Return True if a CSV column header matches a known identifier field name.
-    Normalisation: strip whitespace, lowercase, replace spaces with underscores.
-    This handles headers like 'NHS Number', 'nhs_number', 'NHSNumber' equally.
-    """
+    # Check if column name is a known identifier (patient info)
     return header.strip().lower().replace(" ", "_") in IDENTIFIER_FIELDS
 
 
 def _pseudonymise_token(row_index: int) -> str:
-    """
-    Return a zero-padded opaque token for a given row, e.g. 'ANON_0001'.
-    The token is deterministic within a file but carries no identifying
-    information and cannot be reversed without the original data.
-    """
+    # Create unique token for each row (e.g., ANON_0001)
     return f"ANON_{row_index:04d}"
 
 

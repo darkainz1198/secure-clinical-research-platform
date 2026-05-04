@@ -57,18 +57,16 @@ LOG_HASH_FILE = os.path.join(BASE_DIR, "data", "logs", "audit.log.hash")
 
 
 def _ensure_log_dir() -> None:
-    """Create the logs directory if it does not exist."""
+    # Create logs directory if missing
     os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
 
 
 def _hash_log_file() -> str:
-    """
-    Compute and return the SHA-256 hex digest of the current audit.log content.
-    Returns the hash of an empty byte string if the log file does not exist yet.
-    """
+    # Compute SHA-256 hash of entire audit log file
     if not os.path.exists(LOG_FILE):
-        return hashlib.sha256(b"").hexdigest()
+        return hashlib.sha256(b"").hexdigest()  # Empty hash if not created yet
     sha256 = hashlib.sha256()
+    # Read in chunks to handle large files efficiently
     with open(LOG_FILE, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
             sha256.update(chunk)
@@ -76,20 +74,7 @@ def _hash_log_file() -> str:
 
 
 def log_event(username: str, role: str, action: str, detail: str = "") -> None:
-    """
-    Append one audit log entry to audit.log and update the rolling hash.
-
-    Parameters:
-      username  The authenticated username, or 'SYSTEM' for lifecycle events,
-                or 'UNKNOWN' for failed login attempts (see privacy note above).
-      role      The user's role, or 'system' / 'unknown' for non-user events.
-      action    A short uppercase identifier (e.g. 'LOGIN', 'UPLOAD').
-      detail    Optional free-text context (file paths, result codes, etc.).
-
-    Each call makes two file writes:
-      1. Append the new entry to audit.log
-      2. Rewrite audit.log.hash with the updated SHA-256 of the full log
-    """
+    # Add event to audit log and update rolling hash
     _ensure_log_dir()
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -108,10 +93,7 @@ def log_event(username: str, role: str, action: str, detail: str = "") -> None:
 
 
 def read_log() -> str:
-    """
-    Return the full audit log content as a string.
-    Returns a descriptive placeholder if the log is empty or does not exist.
-    """
+    # Return all audit log entries
     if not os.path.exists(LOG_FILE):
         return "(Audit log is empty — no events have been recorded yet)"
     with open(LOG_FILE, "r", encoding="utf-8") as f:
@@ -120,19 +102,8 @@ def read_log() -> str:
 
 
 def verify_log_integrity() -> tuple[bool, str, str]:
-    """
-    Verify that audit.log has not been modified since the last log_event() call.
-
-    Recomputes the SHA-256 of the current audit.log and compares it against
-    the digest stored in audit.log.hash.
-
-    Returns:
-      (match: bool, stored_hash: str, computed_hash: str)
-
-    A mismatch means the log file was changed outside of log_event() — either
-    manual editing or filesystem-level tampering.
-    """
-    computed = _hash_log_file()
+    # Check if audit log has been tampered with
+    computed = _hash_log_file()  # Recompute current hash
 
     if not os.path.exists(LOG_HASH_FILE):
         return False, "NOT FOUND", computed

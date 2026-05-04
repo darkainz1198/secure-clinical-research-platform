@@ -37,18 +37,15 @@ ASSIGNMENTS_FILE = os.path.join(BASE_DIR, "data", "assignments.json")
 
 
 def _load_assignments() -> dict[str, str]:
-    """
-    Load the assignments store from disk.
-    Returns an empty dict if the file does not exist yet.
-    """
+    # Load dataset-to-researcher assignments from file
     if not os.path.exists(ASSIGNMENTS_FILE):
-        return {}
+        return {}  # No assignments yet
     with open(ASSIGNMENTS_FILE, "r") as f:
         return json.load(f)
 
 
 def _save_assignments(assignments: dict[str, str]) -> None:
-    """Persist the assignments dict to assignments.json."""
+    # Save dataset-to-researcher assignments to file
     os.makedirs(os.path.dirname(ASSIGNMENTS_FILE), exist_ok=True)
     with open(ASSIGNMENTS_FILE, "w") as f:
         json.dump(assignments, f, indent=2)
@@ -80,12 +77,7 @@ def get_assigned_researcher(enc_filename: str) -> str | None:
 
 
 def is_assigned(enc_filename: str, researcher_username: str) -> bool:
-    """
-    Return True if researcher_username is the assigned researcher for enc_filename.
-
-    Called before every controlled dataset decryption to enforce
-    dataset-level access control on top of role-level RBAC.
-    """
+    # Check if this researcher is allowed to access this dataset
     assigned = get_assigned_researcher(enc_filename)
     return assigned == researcher_username
 
